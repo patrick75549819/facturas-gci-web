@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facturas GCI</title>
+<style>
+  :root {
+    --bg: #f5f1ea;
+    --card: #ffffff;
+    --border: #e2d7c3;
+    --text: #2b211c;
+    --muted: #8a7b6c;
+    --blue: #8c1d1d;
+    --blue-dark: #6e1616;
+    --danger: #ed4956;
+    --whatsapp: #25d366;
+    --whatsapp-dark: #1da851;
+    --gradient: linear-gradient(135deg, #8c1d1d 0%, #6e1616 100%);
+    --gold: #b08a3e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .app { max-width: 470px; margin: 0 auto; min-height: 100vh; padding-bottom: 76px; position: relative; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--gradient);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .brand-icon svg { width: 18px; height: 18px; }
+  .brand-name { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #cfcfcf; flex-shrink: 0; }
+  .conn-dot.ok { background: #2fa84f; }
+  .conn-dot.bad { background: var(--danger); }
+
+  .stories-bar {
+    display: flex; gap: 14px; padding: 14px 16px 10px; overflow-x: auto;
+    scrollbar-width: none; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  .stories-bar::-webkit-scrollbar { display: none; }
+  .story {
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    flex-shrink: 0; font-family: inherit;
+  }
+  .story-ring {
+    width: 60px; height: 60px; border-radius: 50%; background: #dbdbdb;
+    display: flex; align-items: center; justify-content: center; padding: 2.5px;
+    transition: background 0.15s;
+  }
+  .story.active .story-ring { background: var(--gradient); }
+  .story-inner {
+    width: 100%; height: 100%; border-radius: 50%; background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 700; color: var(--text);
+  }
+  .story.active .story-inner { color: #8c1d1d; }
+  .story-label { font-size: 10px; color: var(--muted); white-space: nowrap; font-weight: 600; letter-spacing: 0.2px; }
+  .stories-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
+
+  .feed { padding: 12px; }
+  .post-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .post-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .post-avatar {
+    width: 38px; height: 38px; border-radius: 10px; background: #f3ece0; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: var(--blue);
+  }
+  .post-avatar svg { width: 20px; height: 20px; }
+  .post-meta { min-width: 0; flex: 1; }
+  .post-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .post-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .post-preview {
+    background: linear-gradient(180deg, #f7f7f8 0%, #efeff1 100%);
+    padding: 26px 14px; display: flex; align-items: center; justify-content: center;
+  }
+  .post-preview svg { width: 46px; height: 46px; color: #c7c9cd; }
+  .post-actions { display: flex; border-top: 1px solid var(--border); }
+  .action-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 11px 8px; border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text);
+  }
+  .action-btn + .action-btn { border-left: 1px solid var(--border); }
+  .action-btn svg { width: 18px; height: 18px; }
+  .action-btn.whatsapp { color: var(--whatsapp-dark); }
+  .action-btn:active { background: #f3ece0; }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 50px 24px; font-size: 14px; line-height: 1.5; }
+  .empty-state svg { width: 40px; height: 40px; color: #dbdbdb; margin-bottom: 10px; }
+
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin: 12px; padding: 16px; }
+  .section h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 0 0 12px; }
+  label.field-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  input[type="password"] {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    font-size: 14px; font-family: inherit; margin-bottom: 12px; background: var(--bg);
+  }
+  input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .status-msg { font-size: 12.5px; margin-top: 4px; }
+  .status-msg.error { color: var(--danger); }
+  .status-msg.success { color: #2fa84f; }
+
+  .btn-solid {
+    width: 100%; border: none; border-radius: 8px; padding: 11px;
+    font-size: 14px; font-weight: 700; font-family: inherit;
+    background: var(--blue); color: #fff; cursor: pointer;
+  }
+  .btn-solid:active { background: var(--blue-dark); }
+  .lock-wrap { text-align: center; padding: 8px 0 4px; }
+  .lock-icon {
+    width: 52px; height: 52px; border-radius: 50%; background: #f3ece0; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center; color: var(--muted);
+  }
+  .lock-icon svg { width: 24px; height: 24px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+
+  .month-chip-row, .sede-chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 10px; scrollbar-width: none; }
+  .month-chip-row::-webkit-scrollbar, .sede-chip-row::-webkit-scrollbar { display: none; }
+  .month-chip, .sede-chip {
+    flex-shrink: 0; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card); font-size: 12.5px; font-weight: 600; color: var(--text);
+    cursor: pointer; font-family: inherit;
+  }
+  .month-chip.active, .sede-chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+  .admin-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .admin-row:last-child { border-bottom: none; }
+  .admin-row .n { font-weight: 700; color: var(--blue); }
+
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; max-width: 470px; margin: 0 auto;
+    background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 10;
+  }
+  .nav-btn {
+    flex: 1; border: none; background: none; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 10px 0 12px; color: var(--muted); font-family: inherit; font-size: 11px; font-weight: 600;
+  }
+  .nav-btn svg { width: 24px; height: 24px; }
+  .nav-btn.active { color: var(--text); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #e2d7c3; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      </span>
+      <span class="brand-name">Facturas GCI</span>
+    </div>
+    <span class="conn-dot" id="connDot" title="Estado de conexión"></span>
+  </div>
+
+  <div id="viewWorker">
+    <div class="stories-bar" id="monthStories"></div>
+    <div class="feed" id="feed"></div>
+  </div>
+
+  <div id="viewAdmin" style="display:none;"></div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn active" id="navWorker" onclick="switchTab('worker')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Facturas
+    </button>
+    <button class="nav-btn" id="navAdmin" onclick="switchTab('admin')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      Admin
+    </button>
+  </div>
+</div>
+
+<script>
+// ======= CONFIGURACIÓN =======
+const API_BASE = 'https://facturas-gci-backend.onrender.com';
+// ==============================
+
+const MESES_NOMBRES = {
+  '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio',
+  '07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'
+};
+const MES_ABREV = {
+  '01':'ENE','02':'FEB','03':'MAR','04':'ABR','05':'MAY','06':'JUN',
+  '07':'JUL','08':'AGO','09':'SEP','10':'OCT','11':'NOV','12':'DIC'
+};
+
+let months = [];
+let currentMonth = null;
+let currentSede = null;
+let adminUnlocked = false;
+
+function formatMonthLabel(monthKey) {
+  const [year, m] = monthKey.split('-');
+  return `${MESES_NOMBRES[m] || m} ${year}`;
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '';
+  const b = parseInt(bytes, 10);
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
+  return (b / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function apiGet(path) {
+  const res = await fetch(API_BASE + path);
+  if (!res.ok) throw new Error('Error de red: ' + res.status);
+  return res.json();
+}
+
+function setConnDot(state) {
+  const dot = document.getElementById('connDot');
+  dot.className = 'conn-dot ' + (state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : '');
+}
+
+// ======= CARGA INICIAL =======
+async function loadMonths() {
+  try {
+    const data = await apiGet('/api/months');
+    months = (data.months || []).sort((a, b) => b.month.localeCompare(a.month));
+    setConnDot('ok');
+    renderMonthStories();
+    if (months.length > 0) {
+      selectMonth(months[0].month);
+    } else {
+      document.getElementById('feed').innerHTML = emptyStateHtml('Aún no hay facturas subidas.');
+    }
+  } catch (e) {
+    console.error(e);
+    setConnDot('bad');
+    document.getElementById('monthStories').innerHTML = '<div class="stories-empty">No se pudo conectar al servidor. Espera unos segundos (puede estar iniciando) y recarga la página.</div>';
+    document.getElementById('feed').innerHTML = '';
+  }
+}
+
+function emptyStateHtml(msg) {
+  return `<div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    <div>${msg}</div>
+  </div>`;
+}
+
+function renderMonthStories() {
+  const wrap = document.getElementById('monthStories');
+  if (months.length === 0) {
+    wrap.innerHTML = '<div class="stories-empty">Aún no hay meses disponibles.</div>';
+    return;
+  }
+  wrap.innerHTML = months.map(m => {
+    const [year, mm] = m.month.split('-');
+    const active = m.month === currentMonth ? 'active' : '';
+    return `<button class="story ${active}" onclick="selectMonth('${m.month}')">
+      <span class="story-ring"><span class="story-inner">${MES_ABREV[mm] || mm}</span></span>
+      <span class="story-label">${year}</span>
+    </button>`;
+  }).join('');
+}
+
+function selectMonth(monthKey) {
+  currentMonth = monthKey;
+  const monthEntry = months.find(m => m.month === monthKey);
+  currentSede = monthEntry && monthEntry.sedes.length > 0 ? monthEntry.sedes[0] : null;
+  renderMonthStories();
+  renderFeedShell();
+}
+
+function renderFeedShell() {
+  const feed = document.getElementById('feed');
+  const monthEntry = months.find(m => m.month === currentMonth);
+  if (!monthEntry) { feed.innerHTML = emptyStateHtml('Mes no encontrado.'); return; }
+
+  let sedeChipsHtml = '';
+  if (monthEntry.sedes.length > 1) {
+    sedeChipsHtml = `<div class="sede-chip-row">` + monthEntry.sedes.map(s =>
+      `<button class="sede-chip ${s === currentSede ? 'active' : ''}" onclick="selectSede('${s}')">${s}</button>`
+    ).join('') + `</div>`;
+  }
+
+  feed.innerHTML = `
+    <div style="padding: 4px 4px 12px; font-size: 15px; font-weight: 700;">${formatMonthLabel(currentMonth)}</div>
+    ${sedeChipsHtml}
+    <div id="invoiceList"><div class="empty-state"><span class="spinner"></span></div></div>
+  `;
+  loadInvoices();
+}
+
+function selectSede(sede) {
+  currentSede = sede;
+  renderFeedShell();
+}
+
+async function loadInvoices() {
+  const listEl = document.getElementById('invoiceList');
+  if (!currentSede) {
+    listEl.innerHTML = emptyStateHtml('Este mes no tiene sedes con facturas.');
+    return;
+  }
+  try {
+    const data = await apiGet(`/api/months/${currentMonth}/sedes/${currentSede}/invoices`);
+    const invoices = data.invoices || [];
+    if (invoices.length === 0) {
+      listEl.innerHTML = emptyStateHtml(`No hay facturas de ${currentSede} para ${formatMonthLabel(currentMonth)}.`);
+      return;
+    }
+    listEl.innerHTML = invoices.map(inv => postCardHtml(inv)).join('');
+  } catch (e) {
+    console.error(e);
+    listEl.innerHTML = emptyStateHtml('Error cargando las facturas. Intenta de nuevo.');
+  }
+}
+
+function postCardHtml(inv) {
+  const downloadUrl = `${API_BASE}/api/invoices/${inv.id}/download`;
+  return `
+    <div class="post-card">
+      <div class="post-header">
+        <div class="post-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        </div>
+        <div class="post-meta">
+          <div class="post-title">${inv.name}</div>
+          <div class="post-sub">${currentSede} · ${formatSize(inv.size)}</div>
+        </div>
+      </div>
+      <div class="post-preview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      </div>
+      <div class="post-actions">
+        <a class="action-btn" href="${downloadUrl}" download="${inv.name}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Descargar
+        </a>
+        <button class="action-btn whatsapp" onclick="shareInvoice('${inv.id}', '${inv.name.replace(/'/g, "\\'")}', this)">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 6.3A8.9 8.9 0 0 0 12 4a8.9 8.9 0 0 0-7.9 13l-1 3.7 3.8-1A8.9 8.9 0 0 0 12 21a8.9 8.9 0 0 0 5.6-15.7zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.7.8-2.7-.2-.3A7.5 7.5 0 1 1 19.5 12 7.5 7.5 0 0 1 12 19.5zm4.1-5.6c-.2-.1-1.3-.7-1.5-.7s-.4-.1-.5.1-.5.7-.6.8-.2.2-.4.1a6.1 6.1 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.5c-.1-.2 0-.3.1-.4l.3-.4.2-.3a.5.5 0 0 0 0-.4c0-.1-.5-1.3-.7-1.7s-.4-.4-.5-.4h-.5a.9.9 0 0 0-.6.3 2.7 2.7 0 0 0-.9 2.1 4.8 4.8 0 0 0 1 2.5 10.9 10.9 0 0 0 4.2 3.7c.6.2 1 .4 1.4.5a3.3 3.3 0 0 0 1.5.1 2.5 2.5 0 0 0 1.6-1.2 2 2 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3z"/></svg>
+          Enviar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function shareInvoice(fileId, fileName, btnEl) {
+  const originalHtml = btnEl.innerHTML;
+  btnEl.innerHTML = '<span class="spinner"></span>';
+  try {
+    const url = `${API_BASE}/api/invoices/${fileId}/download`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('No se pudo descargar la factura');
+    const blob = await res.blob();
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: fileName });
+    } else {
+      // Fallback: descarga directa si el navegador no soporta compartir archivos
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      console.error(e);
+      alert('No se pudo compartir la factura. Intenta descargarla y compartirla manualmente.');
+    }
+  } finally {
+    btnEl.innerHTML = originalHtml;
+  }
+}
+
+// ======= TABS =======
+function switchTab(tab) {
+  document.getElementById('viewWorker').style.display = tab === 'worker' ? '' : 'none';
+  document.getElementById('viewAdmin').style.display = tab === 'admin' ? '' : 'none';
+  document.getElementById('navWorker').classList.toggle('active', tab === 'worker');
+  document.getElementById('navAdmin').classList.toggle('active', tab === 'admin');
+  if (tab === 'admin') renderAdmin();
+}
+
+function renderAdmin() {
+  const el = document.getElementById('viewAdmin');
+  if (!adminUnlocked) {
+    el.innerHTML = `
+      <div class="section">
+        <div class="lock-wrap">
+          <div class="lock-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <label class="field-label">Clave de administrador</label>
+          <input type="password" id="adminPass" placeholder="••••">
+          <button class="btn-solid" onclick="tryUnlockAdmin()">Ingresar</button>
+          <div class="status-msg error" id="adminError"></div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  el.innerHTML = `
+    <div class="section">
+      <h2>Estado del catálogo</h2>
+      <div id="adminSummary"><span class="spinner"></span></div>
+      <div style="margin-top:14px;">
+        <button class="btn-solid" onclick="refreshCache()">Actualizar ahora</button>
+        <div class="status-msg" id="refreshStatus"></div>
+      </div>
+      <div class="hint">Las facturas se suben directo en tu Google Drive (carpeta "Facturas GCI"), organizadas por mes y sede. Esta app solo las refleja — no hace falta subir nada desde aquí. Los cambios en Drive se detectan automáticamente cada 5 minutos, o al instante si tocas "Actualizar ahora".</div>
+    </div>
+  `;
+  renderAdminSummary();
+}
+
+async function renderAdminSummary() {
+  const el = document.getElementById('adminSummary');
+  try {
+    const data = await apiGet('/api/months');
+    const list = data.months || [];
+    if (list.length === 0) {
+      el.innerHTML = '<div class="status-msg">Todavía no se detectan meses en Drive.</div>';
+      return;
+    }
+    el.innerHTML = list.sort((a,b) => b.month.localeCompare(a.month)).map(m =>
+      `<div class="admin-row"><span>${formatMonthLabel(m.month)}</span><span class="n">${m.sedes.length} sede${m.sedes.length !== 1 ? 's' : ''}</span></div>`
+    ).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="status-msg error">No se pudo cargar el estado.</div>';
+  }
+}
+
+function tryUnlockAdmin() {
+  const pass = document.getElementById('adminPass').value;
+  window._pendingAdminPass = pass;
+  adminUnlocked = true;
+  renderAdmin();
+}
+
+async function refreshCache() {
+  const statusEl = document.getElementById('refreshStatus');
+  statusEl.className = 'status-msg';
+  statusEl.textContent = 'Actualizando...';
+  try {
+    const res = await fetch(API_BASE + '/api/admin/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: window._pendingAdminPass || '' }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.className = 'status-msg error';
+      statusEl.textContent = data.error === 'Clave incorrecta' ? 'Clave incorrecta.' : 'No se pudo actualizar.';
+      if (data.error === 'Clave incorrecta') { adminUnlocked = false; }
+      return;
+    }
+    statusEl.className = 'status-msg success';
+    statusEl.textContent = `Listo: ${data.meses} mes(es) detectado(s).`;
+    await loadMonths();
+    renderAdminSummary();
+  } catch (e) {
+    statusEl.className = 'status-msg error';
+    statusEl.textContent = 'Error de conexión.';
+  }
+}
+
+// ======= INICIO =======
+loadMonths();
+</script>
+</body>
+</html>
