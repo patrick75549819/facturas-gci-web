@@ -44,6 +44,25 @@
   .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #cfcfcf; flex-shrink: 0; }
   .conn-dot.ok { background: #2fa84f; }
   .conn-dot.bad { background: var(--danger); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .icon-btn {
+    background: none; border: none; cursor: pointer; padding: 4px;
+    display: flex; align-items: center; justify-content: center; color: var(--text);
+  }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  .search-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  .search-bar svg { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+  .search-bar input {
+    flex: 1; border: none; outline: none; font-size: 15px; font-family: inherit;
+    background: none; color: var(--text);
+  }
+  .search-bar input::placeholder { color: var(--muted); }
+  .search-close { font-size: 13px; font-weight: 600; color: var(--blue); background: none; border: none; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+  .search-hint { font-size: 12px; color: var(--muted); padding: 10px 16px 0; }
 
   .stories-bar {
     display: flex; gap: 14px; padding: 14px 16px 10px; overflow-x: auto;
@@ -166,7 +185,20 @@
       </span>
       <span class="brand-name">Facturas GCI</span>
     </div>
-    <span class="conn-dot" id="connDot" title="Estado de conexión"></span>
+    <div class="topbar-right">
+      <button class="icon-btn" onclick="toggleSearch()" title="Buscar factura">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
+      <span class="conn-dot" id="connDot" title="Estado de conexión"></span>
+    </div>
+  </div>
+
+  <div id="searchBar" style="display:none;">
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" inputmode="numeric" id="searchInput" placeholder="Buscar por los últimos números, ej. 6521" oninput="onSearchInput()">
+      <button class="search-close" onclick="toggleSearch()">Cerrar</button>
+    </div>
   </div>
 
   <div id="viewWorker">
@@ -320,15 +352,18 @@ async function loadInvoices() {
       listEl.innerHTML = emptyStateHtml(`No hay facturas de ${currentSede} para ${formatMonthLabel(currentMonth)}.`);
       return;
     }
-    listEl.innerHTML = invoices.map(inv => postCardHtml(inv)).join('');
+    listEl.innerHTML = invoices.map(inv => postCardHtml(inv, currentSede)).join('');
   } catch (e) {
     console.error(e);
     listEl.innerHTML = emptyStateHtml('Error cargando las facturas. Intenta de nuevo.');
   }
 }
 
-function postCardHtml(inv) {
+function postCardHtml(inv, sede, monthLabel) {
   const downloadUrl = `${API_BASE}/api/invoices/${inv.id}/download`;
+  const subParts = [sede];
+  if (monthLabel) subParts.push(monthLabel);
+  subParts.push(formatSize(inv.size));
   return `
     <div class="post-card">
       <div class="post-header">
@@ -337,7 +372,7 @@ function postCardHtml(inv) {
         </div>
         <div class="post-meta">
           <div class="post-title">${inv.name}</div>
-          <div class="post-sub">${currentSede} · ${formatSize(inv.size)}</div>
+          <div class="post-sub">${subParts.filter(Boolean).join(' · ')}</div>
         </div>
       </div>
       <div class="post-preview">
@@ -476,6 +511,86 @@ async function refreshCache() {
     statusEl.className = 'status-msg error';
     statusEl.textContent = 'Error de conexión.';
   }
+}
+
+// ======= BÚSQUEDA GLOBAL =======
+let searchIndex = null; // null = aún no construido
+let searchIndexBuilding = false;
+let searchDebounceTimer = null;
+let wasWorkerTabBeforeSearch = true;
+
+function toggleSearch() {
+  const bar = document.getElementById('searchBar');
+  const isOpen = bar.style.display !== 'none';
+  if (isOpen) {
+    bar.style.display = 'none';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('monthStories').style.display = '';
+    // Vuelve a la vista normal del mes/sede actual
+    if (document.getElementById('navWorker').classList.contains('active')) {
+      renderFeedShell();
+    }
+  } else {
+    bar.style.display = '';
+    switchTab('worker');
+    document.getElementById('searchInput').focus();
+  }
+}
+
+async function buildSearchIndexIfNeeded() {
+  if (searchIndex || searchIndexBuilding) return;
+  searchIndexBuilding = true;
+  const feed = document.getElementById('feed');
+  feed.innerHTML = `<div class="empty-state"><span class="spinner"></span><div style="margin-top:10px;">Preparando el buscador (solo la primera vez)...</div></div>`;
+  try {
+    const tasks = [];
+    for (const m of months) {
+      for (const sede of m.sedes) {
+        tasks.push(
+          apiGet(`/api/months/${m.month}/sedes/${sede}/invoices`)
+            .then(data => (data.invoices || []).map(inv => ({ ...inv, month: m.month, sede })))
+            .catch(() => [])
+        );
+      }
+    }
+    const results = await Promise.all(tasks);
+    searchIndex = results.flat();
+  } catch (e) {
+    console.error(e);
+    searchIndex = [];
+  } finally {
+    searchIndexBuilding = false;
+  }
+}
+
+function onSearchInput() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(runSearch, 250);
+}
+
+async function runSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  const feed = document.getElementById('feed');
+  document.getElementById('monthStories').style.display = 'none';
+
+  if (!query) {
+    feed.innerHTML = `<div class="search-hint">Escribe los últimos números de la factura para buscarla en todos los meses.</div>`;
+    return;
+  }
+
+  if (!searchIndex) {
+    await buildSearchIndexIfNeeded();
+  }
+
+  const q = query.toLowerCase();
+  const matches = (searchIndex || []).filter(inv => inv.name.toLowerCase().includes(q));
+
+  if (matches.length === 0) {
+    feed.innerHTML = emptyStateHtml(`No se encontró ninguna factura que contenga "${query}".`);
+    return;
+  }
+  feed.innerHTML = `<div style="padding:4px 4px 10px; font-size:12.5px; color:var(--muted);">${matches.length} resultado(s)</div>` +
+    matches.slice(0, 100).map(inv => postCardHtml(inv, inv.sede, formatMonthLabel(inv.month))).join('');
 }
 
 // ======= INICIO =======
