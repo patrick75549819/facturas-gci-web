@@ -534,9 +534,8 @@ async function refreshCache() {
 
 // ======= BÚSQUEDA GLOBAL =======
 let searchIndex = null; // null = aún no construido
-let searchIndexBuilding = false;
+let searchIndexPromise = null; // promesa compartida mientras se arma el índice
 let searchDebounceTimer = null;
-let wasWorkerTabBeforeSearch = true;
 
 function toggleSearch() {
   const bar = document.getElementById('searchBar');
@@ -553,33 +552,30 @@ function toggleSearch() {
     bar.style.display = '';
     switchTab('worker');
     document.getElementById('searchInput').focus();
+    ensureSearchIndex(); // se adelanta a construir el índice mientras el usuario empieza a escribir
   }
 }
 
-async function buildSearchIndexIfNeeded() {
-  if (searchIndex || searchIndexBuilding) return;
-  searchIndexBuilding = true;
-  const feed = document.getElementById('feed');
-  feed.innerHTML = `<div class="empty-state"><span class="spinner"></span><div style="margin-top:10px;">Preparando el buscador (solo la primera vez)...</div></div>`;
-  try {
-    const tasks = [];
-    for (const m of months) {
-      for (const sede of m.sedes) {
-        tasks.push(
-          apiGet(`/api/months/${m.month}/sedes/${sede}/invoices`)
-            .then(data => (data.invoices || []).map(inv => ({ ...inv, month: m.month, sede })))
-            .catch(() => [])
-        );
+async function ensureSearchIndex() {
+  if (searchIndex) return searchIndex;
+  if (!searchIndexPromise) {
+    searchIndexPromise = (async () => {
+      const tasks = [];
+      for (const m of months) {
+        for (const sede of m.sedes) {
+          tasks.push(
+            apiGet(`/api/months/${m.month}/sedes/${sede}/invoices`)
+              .then(data => (data.invoices || []).map(inv => ({ ...inv, month: m.month, sede })))
+              .catch(() => [])
+          );
+        }
       }
-    }
-    const results = await Promise.all(tasks);
-    searchIndex = results.flat();
-  } catch (e) {
-    console.error(e);
-    searchIndex = [];
-  } finally {
-    searchIndexBuilding = false;
+      const results = await Promise.all(tasks);
+      searchIndex = results.flat();
+      return searchIndex;
+    })();
   }
+  return searchIndexPromise;
 }
 
 function onSearchInput() {
@@ -598,14 +594,39 @@ async function runSearch() {
   }
 
   if (!searchIndex) {
-    await buildSearchIndexIfNeeded();
+    feed.innerHTML = `<div class="empty-state"><span class="spinner"></span><div style="margin-top:10px;">Preparando el buscador (solo la primera vez)...</div></div>`;
+    await ensureSearchIndex();
+    // Mientras esperábamos, el usuario pudo seguir escribiendo o cerrar la búsqueda — usamos el valor más reciente.
+    const latestQuery = document.getElementById('searchInput').value.trim();
+    if (!latestQuery) return;
+    return renderSearchResults(latestQuery);
   }
 
-  const q = query.toLowerCase();
-  const matches = (searchIndex || []).filter(inv => inv.name.toLowerCase().includes(q));
+  renderSearchResults(query);
+}
+
+function extractTrailingDigits(name) {
+  // Toma la corrida de dígitos justo antes de la extensión (ej. "00006521" de "...-00006521.pdf")
+  const match = name.match(/(\d+)(?:\.[a-zA-Z0-9]+)?$/);
+  return match ? match[1] : '';
+}
+
+function renderSearchResults(query) {
+  const feed = document.getElementById('feed');
+  const qDigits = query.replace(/\D/g, ''); // nos quedamos solo con los números que escribió
+
+  if (!qDigits) {
+    feed.innerHTML = `<div class="search-hint">Escribe solo números (los últimos dígitos de la factura).</div>`;
+    return;
+  }
+
+  const matches = (searchIndex || []).filter(inv => {
+    const trailing = extractTrailingDigits(inv.name);
+    return trailing.length > 0 && trailing.endsWith(qDigits);
+  });
 
   if (matches.length === 0) {
-    feed.innerHTML = emptyStateHtml(`No se encontró ninguna factura que contenga "${query}".`);
+    feed.innerHTML = emptyStateHtml(`No se encontró ninguna factura que termine en "${qDigits}".`);
     return;
   }
   feed.innerHTML = `<div style="padding:4px 4px 10px; font-size:12.5px; color:var(--muted);">${matches.length} resultado(s)</div>` +
