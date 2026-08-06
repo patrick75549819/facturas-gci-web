@@ -51,6 +51,7 @@
     background: var(--card); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
   }
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand-icon {
@@ -182,6 +183,7 @@
   .bottom-nav {
     position: fixed; bottom: 0; left: 0; right: 0; max-width: 470px; margin: 0 auto;
     background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 10;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .nav-btn {
     flex: 1; border: none; background: none; cursor: pointer;
